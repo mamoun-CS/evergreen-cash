@@ -1,26 +1,87 @@
 @import "tailwindcss";
+@import "@fontsource/cairo/arabic-400.css";
+@import "@fontsource/cairo/arabic-600.css";
+@import "@fontsource/cairo/arabic-700.css";
+@import "@fontsource/cairo/latin-400.css";
+@import "@fontsource/cairo/latin-700.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --forest-950: #052e16;
+  --forest-900: #0f3d2e;
+  --forest-800: #14532d;
+  --forest-700: #166534;
+  --lime-400: #a3e635;
+  --lime-500: #84cc16;
+  --lime-ring: #8dc63f;
+  --cream: #f4f7f0;
+  --paper: #ffffff;
+  --ink: #10231a;
+  --muted: #5c6b62;
+  --danger: #b42318;
+  --warning: #b45309;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-forest-950: var(--forest-950);
+  --color-forest-900: var(--forest-900);
+  --color-forest-800: var(--forest-800);
+  --color-forest-700: var(--forest-700);
+  --color-lime-400: var(--lime-400);
+  --color-lime-500: var(--lime-500);
+  --color-lime-ring: var(--lime-ring);
+  --color-cream: var(--cream);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --font-sans: "Cairo", ui-sans-serif, system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  min-height: 100%;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: "Cairo", ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+::selection {
+  background: var(--lime-400);
+  color: var(--forest-950);
+}
+
+.touch-target {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+.card-shadow {
+  box-shadow: 0 10px 30px rgba(15, 61, 46, 0.08);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.35s ease-out;
 }

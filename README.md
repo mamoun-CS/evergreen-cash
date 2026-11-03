@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EverGreen CASH — نظام إدارة الصندوق والخدمات الزراعية
 
-## Getting Started
+تطبيق مالي احترافي متكامل مصمم خصيصاً لشركة **EVER GREEN AGRICULTURAL CONTRACTORS**، مبني ليعمل بكفاءة فائقة على أجهزة **Apple iPad** بنظام **PWA بدون الحاجة لاتصال دائم بالإنترنت (Offline-First)**.
 
-First, run the development server:
+---
+
+## 🌟 أبرز مميزات النظام
+
+- **معمارية محلية كاملة (Zero-Server Daily Operations)**: تعمل كافة العمليات المحاسبية، وتوليد الفواتير، واستخراج التقارير محلياً على جهاز iPad عبر IndexedDB.
+- **سجل مالي متسلسل محكم (Append-Only Financial Ledger)**: حماية تامة من التلاعب وتتبع كامل للحركات مع دعم عمليات العكس والتسوية المحاسبية.
+- **حسابات دقيقة بوحدات المبالغ الصغرى (BigInt Minor Units)**: تجنب الأخطاء الشائعة للفاصلة العائمة.
+- **إدارة السلف ومتابعتها**: دورة حياة حقيقية للسلف (صرف، تسوية لمصروف، أو استرداد نقدي) دون ازدواجية حركة النقد.
+- **دليل الأشخاص والموظفين**: كشوف حسابات تفصيلية لكل شخص مع إمكانية التصدير الفوري إلى PDF.
+- **نظام الفواتير الزراعية**: إصدار مسودات، اعتماد نهائي، تكرار، وإلغاء مع محرك PDF مخصص للغة العربية وتوافق كامل مع المشاركة السريعة في iPadOS.
+- **الجرد ومطابقة الصندوق**: مقارنة النقد الفعلي بالمحسوب وتوليد قيود تسوية الفروقات.
+- **تقارير مالية وتحليلية**: تقارير شاملة ومفصلة مع إمكانية التصدير إلى PDF و CSV.
+- **تشفير متقدم ونسخ احتياطي**: تشفير AES-256-GCM مع اشتقاق المفاتيح عبر PBKDF2 ورفع النسخ إلى Google Drive (مجلد التطبيق المعزول `drive.appdata`) أو تصديرها كملف مشفر `.egc`.
+- **أمان وقفل سريع (PIN Lock)**: قفل تلقائي عند عدم النشاط لحماية بيانات الشركة.
+
+---
+
+## 🚀 بدء التشغيل السريع
 
 ```bash
+# تثبيت الحزم
+npm install
+
+# تشغيل خادم التطوير
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# تشغيل الاختبارات المؤتمتة
+npx vitest run
+
+# فحص المعايير البرمجية
+npx eslint
+
+# التحقق من الأنواع
+npx tsc --noEmit
+
+# بناء حزمة الإنتاج
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+للاطلاع على دليل التثبيت المفصل وإعداد Google OAuth وإرشادات التثبيت على iPad، يرجى مراجعة [دليل التشغيل](file:///docs/MANUAL.md).
+# evergreen-cash
