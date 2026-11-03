@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
+    "@tailwindcss/postcss": "^4.3.4",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -36,6 +37,7 @@
     "eslint-config-next": "16.4.4",
     "fake-indexeddb": "^6.2.7",
     "playwright": "^1.64.1",
+    "postcss": "^8.5.32",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^3.2.7"
