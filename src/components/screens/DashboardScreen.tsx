@@ -128,18 +128,18 @@ export function DashboardScreen() {
       {/* Main Metric Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Cash Balance */}
-        <Card className="bg-forest-950 text-white">
+        <Card className="!bg-forest-950 !text-white border-2 border-forest-900 shadow-md">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-white/70">الرصيد النقدي الحالي</span>
-            <div className="rounded-xl bg-forest-900 p-2.5 text-lime-400">
+            <span className="text-sm font-semibold text-emerald-100">الرصيد النقدي الحالي</span>
+            <div className="rounded-xl bg-forest-900/90 p-2.5 text-lime-400 shadow-inner">
               <Wallet className="h-6 w-6" />
             </div>
           </div>
           <div className="mt-4">
-            <p className="text-3xl font-extrabold tracking-tight text-lime-400">
+            <p className="text-3xl font-extrabold tracking-tight !text-lime-400 drop-shadow-sm">
               {currency.symbol} {formatMinorGrouped(data?.cash ?? 0n, exp)}
             </p>
-            <p className="mt-1 text-xs text-lime-300/80">حقيقي ومطابق للسجل المالي</p>
+            <p className="mt-1 text-xs font-medium text-emerald-200/90">حقيقي ومطابق للسجل المالي</p>
           </div>
         </Card>
 
