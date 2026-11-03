@@ -91,6 +91,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, syncedAt: new Date().toISOString() });
   } catch (err: unknown) {
+    // If request was aborted by client disconnect or navigation, ignore cleanly
+    if (err instanceof Error && (err.name === "AbortError" || (err as { code?: string }).code === "ECONNRESET")) {
+      return new Response(null, { status: 499 });
+    }
     const message = err instanceof Error ? err.message : "Sync push failed";
     console.error("Sync push error:", err);
     return NextResponse.json({ error: message }, { status: 500 });
