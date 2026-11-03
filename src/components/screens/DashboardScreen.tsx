@@ -136,10 +136,10 @@ export function DashboardScreen() {
             </div>
           </div>
           <div className="mt-4">
-            <p className="text-3xl font-extrabold tracking-tight">
+            <p className="text-3xl font-extrabold tracking-tight text-lime-400">
               {currency.symbol} {formatMinorGrouped(data?.cash ?? 0n, exp)}
             </p>
-            <p className="mt-1 text-xs text-white/60">حقيقي ومطابق للسجل المالي</p>
+            <p className="mt-1 text-xs text-lime-300/80">حقيقي ومطابق للسجل المالي</p>
           </div>
         </Card>
 
