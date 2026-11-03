@@ -178,21 +178,21 @@ export function ReconcileScreen() {
       </div>
 
       {/* Current Ledger Expected Balance Banner */}
-      <Card className="bg-forest-950 text-white p-6">
+      <Card className="!bg-forest-950 !text-white border-2 border-forest-900 p-6 shadow-md">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <span className="text-xs font-semibold text-lime-400">رصيد الصندوق المتوقع حسابياً الآن</span>
-            <p className="text-3xl font-bold mt-1">
+            <span className="text-xs font-semibold text-emerald-100">رصيد الصندوق المتوقع حسابياً الآن</span>
+            <p className="text-3xl font-extrabold mt-1 tracking-tight !text-lime-400 drop-shadow-sm">
               {currency.symbol} {formatMinorGrouped(expectedMinor, exp)}
             </p>
-            <p className="text-xs text-white/70 mt-1">
+            <p className="text-xs font-medium text-emerald-200/90 mt-1">
               محسوب مباشرة من السجل المالي التراكمي (Append-only Ledger)
             </p>
           </div>
           <Button
             onClick={openModal}
             variant="primary"
-            className="bg-lime-500 text-forest-950 hover:bg-lime-400"
+            className="!bg-lime-500 !text-forest-950 hover:!bg-lime-400 font-bold px-6 py-3 rounded-2xl shadow-sm"
           >
             بدء عد النقد الآن
           </Button>
