@@ -7,6 +7,7 @@ import { hashPin, verifyPin } from "@/lib/crypto/backupCrypto";
 import { saveSettings } from "@/lib/services/financeService";
 import type { AppSettingsRecord } from "@/lib/finance/types";
 import { registerServiceWorker } from "@/lib/pwa/register";
+import { performAutoSync, type SyncStatus } from "@/lib/sync/autoSync";
 import { Button, Input } from "@/components/ui/primitives";
 
 interface Toast {
@@ -24,6 +25,8 @@ interface AppContextValue {
   toast: (message: string, tone?: Toast["tone"]) => void;
   pendingUpdate: boolean;
   applyUpdate: () => void;
+  syncStatus: SyncStatus;
+  triggerSync: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -45,12 +48,25 @@ export function Providers({ children }: { children: ReactNode }) {
   const [unlocked, setUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({ state: "idle", lastSyncTime: null });
   const lastActiveRef = useRef(0);
 
   const toast = useCallback((message: string, tone: Toast["tone"] = "ok") => {
     const id = Date.now() + Math.random();
     setToasts((current) => [...current, { id, message, tone }]);
     setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), 4200);
+  }, []);
+
+  const triggerSync = useCallback(async () => {
+    setSyncStatus((s) => ({ ...s, state: "syncing" }));
+    const result = await performAutoSync();
+    setSyncStatus(result);
+    if (result.state === "idle" && result.lastSyncTime) {
+      // Refresh local UI after sync
+      const next = await getSettings();
+      setSettings(next);
+      setBump((value) => value + 1);
+    }
   }, []);
 
   const refresh = useCallback(async () => {
@@ -62,8 +78,14 @@ export function Providers({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     lastActiveRef.current = Date.now();
-    const on = () => setOnline(true);
-    const off = () => setOnline(false);
+    const on = () => {
+      setOnline(true);
+      void triggerSync();
+    };
+    const off = () => {
+      setOnline(false);
+      setSyncStatus((s) => ({ ...s, state: "offline" }));
+    };
     window.addEventListener("online", on);
     window.addEventListener("offline", off);
     void (async () => {
@@ -71,6 +93,7 @@ export function Providers({ children }: { children: ReactNode }) {
       await ensureDefaults(getDb());
       await refresh();
       setReady(true);
+      void triggerSync();
       registerServiceWorker({
         onWaiting: (worker) => {
           setWaitingWorker(worker);
@@ -82,7 +105,16 @@ export function Providers({ children }: { children: ReactNode }) {
       window.removeEventListener("online", on);
       window.removeEventListener("offline", off);
     };
-  }, [refresh]);
+  }, [refresh, triggerSync]);
+
+  // Periodic background sync every 45 seconds when online
+  useEffect(() => {
+    if (!online) return;
+    const interval = setInterval(() => {
+      void triggerSync();
+    }, 45_000);
+    return () => clearInterval(interval);
+  }, [online, triggerSync]);
 
   useEffect(() => {
     const mark = () => {
@@ -110,8 +142,19 @@ export function Providers({ children }: { children: ReactNode }) {
   }, [waitingWorker]);
 
   const value = useMemo(
-    () => ({ ready, settings, online, refresh, bump, toast, pendingUpdate, applyUpdate }),
-    [applyUpdate, bump, online, pendingUpdate, ready, refresh, settings, toast],
+    () => ({
+      ready,
+      settings,
+      online,
+      refresh,
+      bump,
+      toast,
+      pendingUpdate,
+      applyUpdate,
+      syncStatus,
+      triggerSync,
+    }),
+    [applyUpdate, bump, online, pendingUpdate, ready, refresh, settings, syncStatus, toast, triggerSync],
   );
 
   const locked = Boolean(ready && settings?.pinEnabled && !unlocked);

@@ -15,6 +15,9 @@ import {
   Scale,
   WifiOff,
   Wifi,
+  Cloud,
+  CloudCheck,
+  RefreshCw,
 } from "lucide-react";
 import { useState } from "react";
 import { useApp } from "@/components/providers";
@@ -33,7 +36,7 @@ const NAV = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { online, pendingUpdate, applyUpdate, settings, ready } = useApp();
+  const { online, pendingUpdate, applyUpdate, settings, ready, syncStatus, triggerSync } = useApp();
   const [open, setOpen] = useState(false);
 
   return (
@@ -69,8 +72,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Button>
             <div className="flex items-center gap-2 text-sm font-semibold">
               {online ? <Wifi className="h-4 w-4 text-forest-700" /> : <WifiOff className="h-4 w-4 text-warning" />}
-              {online ? "متصل" : "غير متصل — العمل مستمر محلياً"}
+              <span>{online ? "متصل" : "أوفلاين — الحفظ محلي"}</span>
             </div>
+
+            {/* Cloud Auto-Sync Indicator */}
+            {online && (
+              <button
+                onClick={() => void triggerSync()}
+                title="مزامنة سحابية مع قاعدة بيانات Vercel"
+                className="flex items-center gap-1.5 rounded-xl border border-forest-900/10 bg-white/70 px-2.5 py-1 text-xs font-medium text-forest-900 hover:bg-white transition"
+              >
+                {syncStatus.state === "syncing" ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-lime-600" />
+                    <span>مزامنة سحابية...</span>
+                  </>
+                ) : syncStatus.lastSyncTime ? (
+                  <>
+                    <span className="h-2 w-2 rounded-full bg-lime-500 animate-pulse" />
+                    <span>سحابي متزامن ({syncStatus.lastSyncTime})</span>
+                  </>
+                ) : (
+                  <>
+                    <Cloud className="h-3.5 w-3.5 text-forest-700" />
+                    <span>مزامنة سحابية</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2 text-sm text-muted">
             <Wallet className="h-4 w-4" />
