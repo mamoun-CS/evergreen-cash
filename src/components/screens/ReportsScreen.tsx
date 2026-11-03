@@ -274,8 +274,8 @@ export function ReportsScreen() {
 
       {/* Key Metric Highlights for Selected Period */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <Card className="bg-forest-900 text-white p-5">
-          <span className="text-xs text-white/70">المقبوضات النقدية</span>
+        <Card className="!bg-forest-950 !text-white border-2 border-forest-900 p-5 shadow-sm">
+          <span className="text-xs text-emerald-100 font-medium">المقبوضات النقدية</span>
           <p className="text-2xl font-bold mt-1 text-lime-400">
             {currency.symbol} {formatMinorGrouped(totalCashIn, exp)}
           </p>

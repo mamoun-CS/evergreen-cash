@@ -239,14 +239,14 @@ export function BackupScreen() {
       </div>
 
       {/* Security Info Banner */}
-      <Card className="bg-forest-900 text-white p-5">
+      <Card className="!bg-forest-950 !text-white border-2 border-forest-900 p-5 shadow-sm">
         <div className="flex items-start gap-4">
-          <div className="rounded-2xl bg-forest-800 p-3">
+          <div className="rounded-2xl bg-forest-900 p-3 shadow-inner">
             <Lock className="h-6 w-6 text-lime-400" />
           </div>
           <div>
-            <h3 className="text-lg font-bold">تشفير كامل بصفر معرفة (Zero-Knowledge)</h3>
-            <p className="mt-1 text-sm text-white/80 leading-relaxed">
+            <h3 className="text-lg font-bold text-lime-400">تشفير كامل بصفر معرفة (Zero-Knowledge)</h3>
+            <p className="mt-1.5 text-sm text-emerald-100/90 leading-relaxed font-normal">
               يتم تشفير قاعدة بيانات الصندوق على جهازك قبل رفعها أو تصديرها باستخدام مفتاح يُشتق من عبارة المرور (PBKDF2 مع 310,000 دورة). لا تحتفظ خوادم Google ولا أي طرف ثالث بنسخة من مفتاح فك التشفير.
             </p>
           </div>
