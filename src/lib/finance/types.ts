@@ -183,8 +183,7 @@ export interface BackupMetaRecord {
   id: string;
   createdAt: string;
   status: "success" | "failed" | "local";
-  destination: "google_drive" | "file" | "safety";
-  driveFileId?: string;
+  destination: "file" | "safety" | "postgres";
   fileName: string;
   recordCountsJson: string;
   errorMessage?: string;
@@ -216,7 +215,6 @@ export interface AppSettingsRecord {
   autoBackupIntervalMinutes: number;
   keepBackupCount: number;
   lastSuccessfulBackupAt?: string;
-  googleConnectedEmail?: string;
   pinEnabled: boolean;
   pinHash?: string;
   pinSalt?: string;

@@ -10,8 +10,6 @@ import {
   type BackupDocument,
 } from "@/lib/backup/serialize";
 export type { BackupDocument };
-import { downloadAppData, listAppDataBackups, pruneOldBackups, uploadAppData } from "@/lib/google/drive";
-import { getSettings, saveSettings } from "@/lib/services/financeService";
 import type { BackupMetaRecord } from "@/lib/finance/types";
 
 function fileNameFor(date = new Date()): string {
@@ -24,26 +22,6 @@ export async function createEncryptedBackup(passphrase: string) {
   const json = serializeBackup(snapshot);
   const encrypted = await encryptBackupPayload(json, passphrase);
   return { snapshot, encrypted, fileName: fileNameFor() };
-}
-
-export async function backupToGoogleDrive(passphrase: string): Promise<BackupMetaRecord> {
-  const { snapshot, encrypted, fileName } = await createEncryptedBackup(passphrase);
-  const uploaded = await uploadAppData(fileName, encrypted.bytes);
-  const settings = await getSettings();
-  await pruneOldBackups(settings.keepBackupCount);
-  const meta: BackupMetaRecord = {
-    id: createId(),
-    createdAt: nowIso(),
-    status: "success",
-    destination: "google_drive",
-    driveFileId: uploaded.id,
-    fileName,
-    recordCountsJson: JSON.stringify(snapshot.recordCounts),
-    verified: true,
-  };
-  await getDb().backupMeta.add(meta);
-  await saveSettings({ lastSuccessfulBackupAt: meta.createdAt, dirtySince: undefined });
-  return meta;
 }
 
 export async function exportEncryptedFile(passphrase: string): Promise<void> {
@@ -91,28 +69,8 @@ export async function restoreFromBytes(bytes: Uint8Array, passphrase: string): P
   }
 }
 
-export async function restoreFromGoogle(fileId: string, passphrase: string): Promise<void> {
-  const bytes = await downloadAppData(fileId);
-  await restoreFromBytes(bytes, passphrase);
-}
-
 export async function listLocalBackupMeta(): Promise<BackupMetaRecord[]> {
   return getDb().backupMeta.orderBy("createdAt").reverse().toArray();
 }
 
-export async function listRemoteBackups() {
-  return listAppDataBackups();
-}
 
-export async function recordBackupFailure(message: string): Promise<void> {
-  await getDb().backupMeta.add({
-    id: createId(),
-    createdAt: nowIso(),
-    status: "failed",
-    destination: "google_drive",
-    fileName: "failed",
-    recordCountsJson: "{}",
-    errorMessage: message,
-    verified: false,
-  });
-}
