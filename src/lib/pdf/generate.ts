@@ -86,21 +86,23 @@ async function loadFontBytes(): Promise<ArrayBuffer> {
           if (logoBytes) {
             try {
               const logo = await doc.embedJpg(logoBytes);
-              page.drawImage(logo, { x: margin, y: height - 120, width: 80, height: 80 });
+              // Draw logo top left in header
+              page.drawImage(logo, { x: margin, y: height - 125, width: 85, height: 85 });
             } catch {
               /* logo optional */
             }
           }
 
-          drawRtl(page, font, params.settings.companyName || COMPANY_LEGAL_NAME, right, height - 50, 16);
-          drawRtl(page, font, "فاتورة", right, height - 74, 22);
-          drawRtl(page, font, `رقم الفاتورة: ${params.invoice.invoiceNumber}`, right, height - 100, 11);
-          drawRtl(page, font, `التاريخ: ${formatDateAr(params.invoice.issuedAt)}`, right, height - 118, 11);
-          if (params.settings.companyPhone) {
-            drawRtl(page, font, `هاتف: ${params.settings.companyPhone}`, right, height - 136, 10, muted);
-          }
+          const companyName = params.settings.companyName || COMPANY_LEGAL_NAME;
+          const phone = params.settings.companyPhone || "0597749188";
+
+          drawRtl(page, font, companyName, right, height - 52, 15);
+          drawRtl(page, font, "فاتورة ضريبية / سند مطالبة", right, height - 74, 20);
+          drawRtl(page, font, `رقم الفاتورة: ${params.invoice.invoiceNumber}`, right, height - 98, 11);
+          drawRtl(page, font, `التاريخ: ${formatDateAr(params.invoice.issuedAt)}`, right, height - 116, 11);
+          drawRtl(page, font, `جوال: ${phone}`, right, height - 134, 11, muted);
           if (params.settings.companyAddress) {
-            drawRtl(page, font, params.settings.companyAddress, right, height - 152, 10, muted);
+            drawRtl(page, font, params.settings.companyAddress, right, height - 150, 10, muted);
           }
 
           let y = height - 190;

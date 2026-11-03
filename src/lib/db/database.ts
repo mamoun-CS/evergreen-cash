@@ -90,7 +90,7 @@ export async function ensureDefaults(db: EverGreenDatabase): Promise<void> {
         id: "app",
         companyName: COMPANY_LEGAL_NAME,
         companyAddress: "",
-        companyPhone: "",
+        companyPhone: "0597749188",
         companyEmail: "",
         defaultCurrency: "ILS",
         invoicePrefix: "INV-",
@@ -101,6 +101,11 @@ export async function ensureDefaults(db: EverGreenDatabase): Promise<void> {
         pinEnabled: false,
         autoLockMinutes: 5,
         schemaVersion: SCHEMA_VERSION,
+      });
+    } else if (!existing.companyPhone) {
+      await db.settings.put({
+        ...existing,
+        companyPhone: "0597749188",
       });
     }
 
