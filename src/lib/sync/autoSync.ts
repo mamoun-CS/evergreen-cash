@@ -71,6 +71,10 @@ export async function performAutoSync(): Promise<SyncStatus> {
     if (!serverState.exists) {
       await pushToPostgres(localSnapshot);
       lastSyncedChecksum = localSnapshot.checksum;
+      const settings = await getDb().settings.get("app");
+      if (settings?.dirtySince) {
+        await getDb().settings.put({ ...settings, dirtySince: undefined });
+      }
       return {
         state: "idle",
         lastSyncTime: new Date().toLocaleTimeString("ar-EG"),
@@ -80,6 +84,10 @@ export async function performAutoSync(): Promise<SyncStatus> {
     // Checksums match → fully in sync
     if (serverState.checksum === localSnapshot.checksum) {
       lastSyncedChecksum = localSnapshot.checksum;
+      const settings = await getDb().settings.get("app");
+      if (settings?.dirtySince) {
+        await getDb().settings.put({ ...settings, dirtySince: undefined });
+      }
       return {
         state: "idle",
         lastSyncTime: new Date().toLocaleTimeString("ar-EG"),
