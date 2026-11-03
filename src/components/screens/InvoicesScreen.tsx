@@ -34,7 +34,7 @@ import { buildInvoicePdf, shareOrDownloadPdf } from "@/lib/pdf/generate";
 import Link from "next/link";
 
 export function InvoicesScreen() {
-  const { bump, refresh, toast, settings } = useApp();
+  const { bump, refresh, toast, settings, notifyDataChanged } = useApp();
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [people, setPeople] = useState<PersonRecord[]>([]);
   const [search, setSearch] = useState("");
@@ -208,6 +208,7 @@ export function InvoicesScreen() {
       toast(finalize ? "تم اعتماد الفاتورة بنجاح" : "تم حفظ الفاتورة كمسودة", "ok");
       setModalOpen(false);
       await refresh();
+      notifyDataChanged();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "فشل حفظ الفاتورة";
       toast(msg, "err");
@@ -221,6 +222,7 @@ export function InvoicesScreen() {
       await duplicateInvoice(id);
       toast("تم تكرار الفاتورة كمسودة جديدة", "ok");
       await refresh();
+      notifyDataChanged();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "فشل تكرار الفاتورة";
       toast(msg, "err");
@@ -236,6 +238,7 @@ export function InvoicesScreen() {
       setCancelModalInvoice(null);
       setCancelReason("");
       await refresh();
+      notifyDataChanged();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "فشل إلغاء الفاتورة";
       toast(msg, "err");

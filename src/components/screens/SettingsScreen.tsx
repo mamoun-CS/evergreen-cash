@@ -15,7 +15,7 @@ import { CURRENCIES } from "@/lib/currencies";
 import { APP_VERSION, SCHEMA_VERSION } from "@/lib/version";
 
 export function SettingsScreen() {
-  const { settings, refresh, toast } = useApp();
+  const { settings, refresh, toast, notifyDataChanged } = useApp();
 
   // Company details
   const [companyName, setCompanyName] = useState(settings?.companyName || "");
@@ -80,6 +80,7 @@ export function SettingsScreen() {
 
       toast("تم حفظ الإعدادات بنجاح", "ok");
       await refresh();
+      notifyDataChanged();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "فشل حفظ الإعدادات";
       toast(msg, "err");

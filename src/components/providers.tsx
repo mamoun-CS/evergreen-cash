@@ -7,7 +7,7 @@ import { hashPin, verifyPin } from "@/lib/crypto/backupCrypto";
 import { saveSettings } from "@/lib/services/financeService";
 import type { AppSettingsRecord } from "@/lib/finance/types";
 import { registerServiceWorker } from "@/lib/pwa/register";
-import { performAutoSync, type SyncStatus } from "@/lib/sync/autoSync";
+import { performAutoSync, scheduleSync, type SyncStatus } from "@/lib/sync/autoSync";
 import { Button, Input } from "@/components/ui/primitives";
 
 interface Toast {
@@ -27,6 +27,7 @@ interface AppContextValue {
   applyUpdate: () => void;
   syncStatus: SyncStatus;
   triggerSync: () => Promise<void>;
+  notifyDataChanged: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -69,6 +70,14 @@ export function Providers({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Called immediately after any data mutation (add/edit/delete/reconcile)
+  // Schedules a debounced sync: fires in 500ms if online, waits for reconnect if offline
+  const notifyDataChanged = useCallback(() => {
+    scheduleSync((result) => {
+      setSyncStatus(result);
+    });
+  }, []);
+
   const refresh = useCallback(async () => {
     const next = await getSettings();
     setSettings(next);
@@ -80,7 +89,12 @@ export function Providers({ children }: { children: ReactNode }) {
     lastActiveRef.current = Date.now();
     const on = () => {
       setOnline(true);
-      void triggerSync();
+      setSyncStatus((s) => ({ ...s, state: "syncing" }));
+      // Reconnected: immediately push any offline-queued changes
+      void triggerSync().then(() => {
+        // After push, refresh UI to reflect any changes from other devices
+        void refresh();
+      });
     };
     const off = () => {
       setOnline(false);
@@ -107,12 +121,12 @@ export function Providers({ children }: { children: ReactNode }) {
     };
   }, [refresh, triggerSync]);
 
-  // Periodic background sync every 45 seconds when online
+  // Periodic background sync every 30 seconds when online (fallback for missed events)
   useEffect(() => {
     if (!online) return;
     const interval = setInterval(() => {
       void triggerSync();
-    }, 45_000);
+    }, 30_000);
     return () => clearInterval(interval);
   }, [online, triggerSync]);
 
@@ -153,8 +167,9 @@ export function Providers({ children }: { children: ReactNode }) {
       applyUpdate,
       syncStatus,
       triggerSync,
+      notifyDataChanged,
     }),
-    [applyUpdate, bump, online, pendingUpdate, ready, refresh, settings, syncStatus, toast, triggerSync],
+    [applyUpdate, bump, notifyDataChanged, online, pendingUpdate, ready, refresh, settings, syncStatus, toast, triggerSync],
   );
 
   const locked = Boolean(ready && settings?.pinEnabled && !unlocked);

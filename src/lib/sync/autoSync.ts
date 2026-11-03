@@ -3,11 +3,30 @@ import { getDb } from "@/lib/db/database";
 
 let isSyncing = false;
 let lastSyncedChecksum: string | null = null;
+let pendingSyncTimer: ReturnType<typeof setTimeout> | null = null;
 
 export interface SyncStatus {
   state: "idle" | "syncing" | "error" | "offline";
   lastSyncTime: string | null;
   errorMessage?: string;
+}
+
+// Called by any data-mutating operation to request an immediate sync.
+// If online → syncs within 500ms (debounced to avoid hammering on bulk ops).
+// If offline → sets dirtySince flag and waits; sync fires on reconnect.
+export function scheduleSync(onResult?: (status: SyncStatus) => void): void {
+  if (typeof window === "undefined") return;
+
+  if (pendingSyncTimer !== null) {
+    clearTimeout(pendingSyncTimer);
+  }
+
+  pendingSyncTimer = setTimeout(async () => {
+    pendingSyncTimer = null;
+    if (!navigator.onLine) return; // offline — will sync on reconnect via "online" event
+    const result = await performAutoSync();
+    onResult?.(result);
+  }, 500);
 }
 
 /**
@@ -48,9 +67,8 @@ export async function performAutoSync(): Promise<SyncStatus> {
 
     const serverState = await res.json();
 
-    // If server has no data or server checksum matches local, push or complete
+    // If server has no data → first time, upload
     if (!serverState.exists) {
-      // First time: upload local database to Postgres
       await pushToPostgres(localSnapshot);
       lastSyncedChecksum = localSnapshot.checksum;
       return {
@@ -59,7 +77,7 @@ export async function performAutoSync(): Promise<SyncStatus> {
       };
     }
 
-    // If local checksum matches remote, we are fully in sync
+    // Checksums match → fully in sync
     if (serverState.checksum === localSnapshot.checksum) {
       lastSyncedChecksum = localSnapshot.checksum;
       return {
@@ -68,9 +86,15 @@ export async function performAutoSync(): Promise<SyncStatus> {
       };
     }
 
-    // If local was modified since last sync, push local
-    if (lastSyncedChecksum && localSnapshot.checksum !== lastSyncedChecksum) {
+    // Local has pending changes (dirtySince set) → push local
+    const settings = await getDb().settings.get("app");
+    const hasPendingLocal = Boolean(settings?.dirtySince);
+    if (hasPendingLocal || (lastSyncedChecksum && localSnapshot.checksum !== lastSyncedChecksum)) {
       await pushToPostgres(localSnapshot);
+      // Clear dirtySince after successful push
+      if (settings?.dirtySince) {
+        await getDb().settings.put({ ...settings, dirtySince: undefined });
+      }
       lastSyncedChecksum = localSnapshot.checksum;
       return {
         state: "idle",
@@ -78,7 +102,7 @@ export async function performAutoSync(): Promise<SyncStatus> {
       };
     }
 
-    // Otherwise, server has newer data from another device -> pull and restore
+    // Server has newer data from another device → pull and restore
     if (serverState.data) {
       const remoteDoc: BackupDocument = {
         magic: "EVERGREEN_CASH_BACKUP",
@@ -98,7 +122,7 @@ export async function performAutoSync(): Promise<SyncStatus> {
       };
     }
 
-    // Default push
+    // Default: push local
     await pushToPostgres(localSnapshot);
     lastSyncedChecksum = localSnapshot.checksum;
     return {
@@ -137,4 +161,3 @@ async function pushToPostgres(snapshot: BackupDocument) {
     throw new Error(`Failed to push to Postgres (${pushRes.status})`);
   }
 }
-

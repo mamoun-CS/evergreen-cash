@@ -27,7 +27,7 @@ function getInitialType(param: string | null): UserTransactionType {
 }
 
 export function TransactionsScreen() {
-  const { bump, refresh, toast, settings } = useApp();
+  const { bump, refresh, toast, settings, notifyDataChanged } = useApp();
   const searchParams = useSearchParams();
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [people, setPeople] = useState<PersonRecord[]>([]);
@@ -97,6 +97,7 @@ export function TransactionsScreen() {
       setModalOpen(false);
       resetForm();
       await refresh();
+      notifyDataChanged();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "فشل تسجيل الحركة";
       toast(message, "err");
@@ -114,6 +115,7 @@ export function TransactionsScreen() {
       setReverseModalTx(null);
       setReverseReason("");
       await refresh();
+      notifyDataChanged();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "فشل عكس الحركة";
       toast(message, "err");

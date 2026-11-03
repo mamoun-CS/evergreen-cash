@@ -25,7 +25,7 @@ import {
 import { buildStatementPdf, shareOrDownloadPdf } from "@/lib/pdf/generate";
 
 export function PeopleScreen() {
-  const { bump, refresh, toast, settings } = useApp();
+  const { bump, refresh, toast, settings, notifyDataChanged } = useApp();
   const [people, setPeople] = useState<PersonRecord[]>([]);
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
@@ -102,6 +102,7 @@ export function PeopleScreen() {
       toast(editingPerson ? "تم تعديل بيانات الشخص" : "تمت إضافة الشخص بنجاح", "ok");
       setEditModalOpen(false);
       await refresh();
+      notifyDataChanged();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "حدث خطأ أثناء حفظ البيانات";
       toast(msg, "err");
@@ -116,6 +117,7 @@ export function PeopleScreen() {
       await archivePerson(id);
       toast("تمت أرشفة الشخص بنجاح", "ok");
       await refresh();
+      notifyDataChanged();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "فشلت الأرشفة";
       toast(msg, "err");

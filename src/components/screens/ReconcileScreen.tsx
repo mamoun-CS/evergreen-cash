@@ -23,7 +23,7 @@ import {
 import { buildReportPdf, shareOrDownloadPdf } from "@/lib/pdf/generate";
 
 export function ReconcileScreen() {
-  const { bump, refresh, toast, settings } = useApp();
+  const { bump, refresh, toast, settings, notifyDataChanged } = useApp();
   const [reconciliations, setReconciliations] = useState<ReconciliationRecord[]>([]);
   const [expectedMinor, setExpectedMinor] = useState<bigint>(0n);
   const [modalOpen, setModalOpen] = useState(false);
@@ -110,6 +110,7 @@ export function ReconcileScreen() {
       toast("تم تسجيل عملية الجرد وتحديث السجل المالي بنجاح", "ok");
       setModalOpen(false);
       await refresh();
+      notifyDataChanged();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "فشل تسجيل الجرد";
       toast(msg, "err");
