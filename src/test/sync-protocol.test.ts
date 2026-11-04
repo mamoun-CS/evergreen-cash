@@ -48,6 +48,30 @@ describe("بروتوكول لقطة المزامنة", () => {
     expect(verified.checksum).toBe(legacy.checksum);
   });
 
+  it("يقبل checksum التاريخي المحسوب على بيانات الجداول بترتيب JSON الأصلي", async () => {
+    const legacy = { ...doc, checksum: await sha256Hex(JSON.stringify(doc.data)) };
+    const verified = await parseAndValidateBackup(JSON.stringify(legacy));
+    expect(verified.checksum).toBe(legacy.checksum);
+
+    const tampered = { ...legacy, data: { ...legacy.data, people: [{ id: "p1", fullName: "بيانات معدلة" }] } };
+    await expect(parseAndValidateBackup(JSON.stringify(tampered)))
+      .rejects.toThrow("بصمة النسخة الاحتياطية غير صحيحة");
+  });
+
+  it("يقبل ترتيب المفاتيح التاريخي المعجمي المستقل عن locale", async () => {
+    const legacy = structuredClone(doc);
+    legacy.data.people = [{ id: "p1", A: "قديم", a: "جديد" }];
+    const lexical = (value: unknown): string => {
+      if (Array.isArray(value)) return `[${value.map(lexical).join(",")}]`;
+      if (value && typeof value === "object") {
+        return `{${Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, item]) => `${JSON.stringify(key)}:${lexical(item)}`).join(",")}}`;
+      }
+      return JSON.stringify(value);
+    };
+    legacy.checksum = await sha256Hex(lexical(legacy.data));
+    await expect(parseAndValidateBackup(JSON.stringify(legacy))).resolves.toMatchObject({ checksum: legacy.checksum });
+  });
+
   it("يقرأ تنسيق السحابة القديم ثم يعيد بناء checksum البيانات للتحويل المشفر", async () => {
     const tables = Object.fromEntries(TABLE_NAMES.map((name) => [name, [] as unknown[]]));
     tables.people = [{ id: "legacy-person", fullName: "بيانات سحابية قديمة" }];
@@ -83,6 +107,27 @@ describe("بروتوكول لقطة المزامنة", () => {
 
     expect(decoded.legacyPlaintext).toBe(false);
     expect(decoded.document.checksum).toBe(encryptedDoc.checksum);
+  });
+
+  it("يوحّد بصمة نسخة سحابية قديمة بعد نجاح توثيق AES-GCM", async () => {
+    const oldDoc = { ...doc, checksum: "a".repeat(64) };
+    const encrypted = await encryptBackupPayload(JSON.stringify(oldDoc), phrase);
+    const bytes = encrypted.bytes;
+    const toHex = (value: Uint8Array) => Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const ciphertext = btoa(Array.from(bytes.slice(36), (byte) => String.fromCharCode(byte)).join(""));
+    const kdfIterations = new DataView(bytes.buffer, bytes.byteOffset + 32, 4).getUint32(0, true);
+    const decoded = await decodeRemoteSnapshot({
+      ciphertext,
+      salt: toHex(bytes.slice(4, 20)),
+      iv: toHex(bytes.slice(20, 32)),
+      kdfIterations,
+      checksum: oldDoc.checksum,
+    }, phrase);
+
+    expect(decoded.legacyPlaintext).toBe(true);
+    expect(decoded.document.checksum).toBe(await sha256Hex(canonicalize(decoded.document.data)));
+    await expect(parseAndValidateBackup(JSON.stringify(oldDoc)))
+      .rejects.toThrow("بصمة النسخة الاحتياطية غير صحيحة");
   });
 
   it("يرفض حالة سحابية ناقصة برسالة مفهومة بدلاً من دمج null", async () => {

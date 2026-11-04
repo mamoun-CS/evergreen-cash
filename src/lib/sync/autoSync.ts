@@ -1,5 +1,5 @@
 import Dexie from "dexie";
-import { canonicalize, parseAndValidateBackup, snapshotDatabase, type BackupDocument } from "@/lib/backup/serialize";
+import { canonicalize, parseAndValidateBackup, parseAuthenticatedRemoteBackup, snapshotDatabase, type BackupDocument } from "@/lib/backup/serialize";
 import { decryptBackupPayload, encryptBackupPayload } from "@/lib/crypto/backupCrypto";
 import { APP_VERSION, BACKUP_FORMAT_VERSION, BACKUP_MAGIC, SCHEMA_VERSION } from "@/lib/version";
 import { getDb, TABLE_NAMES } from "@/lib/db/database";
@@ -66,13 +66,13 @@ export async function performAutoSync(): Promise<SyncStatus> {
 
     if (!res.ok) {
       if (res.status === 503) {
-        // Postgres not configured yet on Vercel
         return {
           state: "unavailable",
           lastSyncTime: null,
-          errorMessage: "قاعدة البيانات السحابية غير مضبوطة",
+          errorMessage: await getSyncErrorMessage(res, "خدمة المزامنة السحابية غير متاحة؛ تحقق من إعدادات الخادم"),
         };
       }
+      if (res.status === 401) throw new Error("مفتاح المزامنة غير صحيح أو غير محفوظ على هذا الجهاز");
       throw new Error(`Sync error: ${res.statusText}`);
     }
 
@@ -218,7 +218,7 @@ async function pushToPostgres(snapshot: BackupDocument, baseRevision: number, au
     if (new TextEncoder().encode(JSON.stringify(payload)).length > 1024 * 1024) throw new Error("حجم دفعة المزامنة أكبر من 1 ميغابايت؛ بقيت العناصر محفوظة في قائمة الانتظار");
     const pushRes = await fetchWithTimeout("/api/sync", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders }, body: JSON.stringify(payload) });
     if (pushRes.ok) return await pushRes.json() as { revision: number };
-    if (pushRes.status === 503) throw new Error("قاعدة البيانات السحابية غير مضبوطة");
+    if (pushRes.status === 503) throw new Error(await getSyncErrorMessage(pushRes, "خدمة المزامنة السحابية غير متاحة؛ تحقق من إعدادات الخادم"));
     if (pushRes.status === 401) throw new Error("مفتاح المزامنة غير صحيح أو غير محفوظ على هذا الجهاز");
     if (pushRes.status !== 409) throw new Error(`تعذر رفع المزامنة (${pushRes.status})`);
     const conflict = await pushRes.json();
@@ -228,6 +228,18 @@ async function pushToPostgres(snapshot: BackupDocument, baseRevision: number, au
     current = await snapshotDatabase();
   }
   throw new Error("تعارض يحتاج مراجعة: تعذر إتمام الدمج بعد ثلاث محاولات، وحُفظت نسخة أمان محلية.");
+}
+
+async function getSyncErrorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const body: unknown = await response.json();
+    if (body && typeof body === "object" && "error" in body && typeof body.error === "string") {
+      return body.error;
+    }
+  } catch {
+    // Keep a useful Arabic fallback if the server response is not JSON.
+  }
+  return fallback;
 }
 
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs = 12_000): Promise<Response> {
@@ -245,25 +257,25 @@ export async function decodeRemoteSnapshot(
   passphrase: string,
 ): Promise<{ document: BackupDocument; legacyPlaintext: boolean }> {
   if (typeof remote.ciphertext === "string") {
-    const document = await parseAndValidateBackup(await decryptBackupPayload(frameFromRemote({
+    const decoded = await parseAuthenticatedRemoteBackup(await decryptBackupPayload(frameFromRemote({
       ciphertext: remote.ciphertext,
       iv: String(remote.iv ?? ""),
       salt: String(remote.salt ?? ""),
       kdfIterations: Number(remote.kdfIterations),
     }), passphrase));
-    if (typeof remote.checksum === "string" && document.checksum !== remote.checksum) {
+    if (typeof remote.checksum === "string" && decoded.originalChecksum !== remote.checksum && decoded.document.checksum !== remote.checksum) {
       throw new Error("بصمة بيانات السحابة غير مطابقة؛ تم رفض المزامنة لحماية البيانات المحلية.");
     }
-    return { document, legacyPlaintext: false };
+    return { document: decoded.document, legacyPlaintext: decoded.legacyChecksum };
   }
 
   if (typeof remote.blob === "string") {
     const bytes = Uint8Array.from(atob(remote.blob), (char) => char.charCodeAt(0));
-    const document = await parseAndValidateBackup(await decryptBackupPayload(bytes, passphrase));
-    if (typeof remote.checksum === "string" && document.checksum !== remote.checksum) {
+    const decoded = await parseAuthenticatedRemoteBackup(await decryptBackupPayload(bytes, passphrase));
+    if (typeof remote.checksum === "string" && decoded.originalChecksum !== remote.checksum && decoded.document.checksum !== remote.checksum) {
       throw new Error("بصمة بيانات السحابة غير مطابقة؛ تم رفض المزامنة لحماية البيانات المحلية.");
     }
-    return { document, legacyPlaintext: false };
+    return { document: decoded.document, legacyPlaintext: decoded.legacyChecksum };
   }
 
   // Older server versions stored the table map directly in Postgres and

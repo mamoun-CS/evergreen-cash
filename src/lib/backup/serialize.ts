@@ -53,11 +53,37 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function legacyLexicalStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(legacyLexicalStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${legacyLexicalStringify(item)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
 export function serializeBackup(doc: BackupDocument): string {
   return JSON.stringify(doc);
 }
 
 export async function parseAndValidateBackup(json: string): Promise<BackupDocument> {
+  return (await validateBackup(json, false)).document;
+}
+
+/** Validate a backup only after its AES-GCM authentication has succeeded. */
+export async function parseAuthenticatedRemoteBackup(json: string): Promise<{
+  document: BackupDocument;
+  originalChecksum: string;
+  legacyChecksum: boolean;
+}> {
+  return validateBackup(json, true);
+}
+
+async function validateBackup(json: string, allowAuthenticatedLegacyChecksum: boolean): Promise<{
+  document: BackupDocument;
+  originalChecksum: string;
+  legacyChecksum: boolean;
+}> {
   let parsed: BackupDocument;
   try {
     parsed = JSON.parse(json) as BackupDocument;
@@ -81,9 +107,26 @@ export async function parseAndValidateBackup(json: string): Promise<BackupDocume
   await verifyChain(parsed.data.ledgerEvents as never[]);
   const unsigned = Object.fromEntries(Object.entries(parsed).filter(([key]) => key !== "checksum"));
   const currentChecksum = await sha256Hex(stableStringify(parsed.data));
-  const legacyChecksum = await sha256Hex(JSON.stringify(unsigned));
-  if (parsed.checksum !== currentChecksum && parsed.checksum !== legacyChecksum) throw new IntegrityError("بصمة النسخة الاحتياطية غير صحيحة؛ تم رفض الاستعادة.");
-  return parsed;
+  const legacyWholeDocumentChecksum = await sha256Hex(JSON.stringify(unsigned));
+  // Earlier releases hashed the table data with JSON.stringify before the
+  // canonical data-only checksum format was introduced.
+  const legacyDataChecksum = await sha256Hex(JSON.stringify(parsed.data));
+  // Some older clients sorted object keys by Unicode code point rather than
+  // locale collation. Accept that deterministic data-only checksum as well.
+  const legacyLexicalChecksum = await sha256Hex(legacyLexicalStringify(parsed.data));
+  const matchesKnownChecksum = parsed.checksum === currentChecksum || parsed.checksum === legacyWholeDocumentChecksum || parsed.checksum === legacyDataChecksum || parsed.checksum === legacyLexicalChecksum;
+  if (!matchesKnownChecksum && !allowAuthenticatedLegacyChecksum) {
+    throw new IntegrityError("بصمة النسخة الاحتياطية غير صحيحة؛ تم رفض الاستعادة.");
+  }
+  if (typeof parsed.checksum !== "string" || !/^[a-f0-9]{64}$/i.test(parsed.checksum)) {
+    throw new IntegrityError("بصمة النسخة الاحتياطية غير صالحة؛ تم رفض الاستعادة.");
+  }
+  const usesLegacyChecksum = parsed.checksum !== currentChecksum;
+  return {
+    document: allowAuthenticatedLegacyChecksum && usesLegacyChecksum ? { ...parsed, checksum: currentChecksum } : parsed,
+    originalChecksum: parsed.checksum,
+    legacyChecksum: usesLegacyChecksum,
+  };
 }
 
 export function canonicalize(value: unknown): string {
