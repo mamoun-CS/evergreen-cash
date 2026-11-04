@@ -6,13 +6,15 @@ import { getDb, TABLE_NAMES } from "@/lib/db/database";
 import { hashEvent, verifyChain } from "@/lib/finance/ledger";
 import { createId } from "@/lib/ids";
 import { sha256Hex } from "@/lib/hash";
+import { getApiUrl } from "@/lib/apiBase";
+import { isNative } from "@/lib/native";
 
 let isSyncing = false;
 let lastSyncedChecksum: string | null = null;
 let pendingSyncTimer: ReturnType<typeof setTimeout> | null = null;
 
 export interface SyncStatus {
-  state: "idle" | "syncing" | "error" | "offline" | "unavailable";
+  state: "idle" | "syncing" | "error" | "offline" | "unavailable" | "disabled";
   lastSyncTime: string | null;
   errorMessage?: string;
 }
@@ -41,9 +43,11 @@ export function scheduleSync(onResult?: (status: SyncStatus) => void): void {
  * 2. Pulls remote changes if server has newer data.
  */
 export async function performAutoSync(): Promise<SyncStatus> {
-  if (typeof window === "undefined" || !navigator.onLine) {
+  if (typeof window === "undefined") {
     return { state: "offline", lastSyncTime: null };
   }
+  if (isNative() && !getApiUrl("/api/sync")) return { state: "disabled", lastSyncTime: null };
+  if (!navigator.onLine) return { state: "offline", lastSyncTime: null };
 
   if (isSyncing) {
     return { state: "syncing", lastSyncTime: null };
@@ -58,7 +62,9 @@ export async function performAutoSync(): Promise<SyncStatus> {
     const pendingOutbox = (await getDb().outbox.orderBy("createdAt").toArray()).filter((item) => !item.nextAttemptAt || item.nextAttemptAt <= new Date().toISOString());
 
     // 1. Check server status & latest remote state
-    const res = await fetchWithTimeout("/api/sync", {
+    const syncUrl = getApiUrl("/api/sync");
+    if (!syncUrl) return { state: "disabled", lastSyncTime: null };
+    const res = await fetchWithTimeout(syncUrl, {
       method: "GET",
       cache: "no-store",
       headers,
@@ -216,7 +222,9 @@ async function pushToPostgres(snapshot: BackupDocument, baseRevision: number, au
       checksum: current.checksum, ciphertext, iv, salt, kdfIterations,
     };
     if (new TextEncoder().encode(JSON.stringify(payload)).length > 1024 * 1024) throw new Error("حجم دفعة المزامنة أكبر من 1 ميغابايت؛ بقيت العناصر محفوظة في قائمة الانتظار");
-    const pushRes = await fetchWithTimeout("/api/sync", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders }, body: JSON.stringify(payload) });
+    const syncUrl = getApiUrl("/api/sync");
+    if (!syncUrl) throw new Error("المزامنة السحابية غير مفعّلة لهذا التطبيق");
+    const pushRes = await fetchWithTimeout(syncUrl, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders }, body: JSON.stringify(payload) });
     if (pushRes.ok) return await pushRes.json() as { revision: number };
     if (pushRes.status === 503) throw new Error(await getSyncErrorMessage(pushRes, "خدمة المزامنة السحابية غير متاحة؛ تحقق من إعدادات الخادم"));
     if (pushRes.status === 401) throw new Error("مفتاح المزامنة غير صحيح أو غير محفوظ على هذا الجهاز");

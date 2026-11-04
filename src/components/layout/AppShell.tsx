@@ -49,8 +49,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="min-h-dvh bg-cream text-ink">
-      <aside className="fixed inset-y-0 right-0 z-30 hidden w-72 flex-col border-l border-forest-900/10 bg-forest-950 text-white lg:flex">
+    <div className="app-safe-area min-h-dvh bg-cream text-ink">
+      <aside className="app-sidebar fixed inset-y-0 right-0 z-30 hidden w-72 flex-col border-l border-forest-900/10 bg-forest-950 text-white lg:flex">
         <Brand />
         <nav className="flex-1 space-y-1 p-4">
           {NAV.map((item) => (
@@ -61,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {open ? (
-        <div className="fixed inset-0 z-40 bg-forest-950/50 lg:hidden" onClick={() => setOpen(false)}>
+        <div className="app-safe-overlay fixed inset-0 z-40 bg-forest-950/50 lg:hidden" onClick={() => setOpen(false)}>
           <aside className="absolute inset-y-0 right-0 w-72 bg-forest-950 p-4 text-white" onClick={(e) => e.stopPropagation()}>
             <Brand />
             <nav className="mt-4 space-y-1">
@@ -104,7 +104,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 ) : (
                   <>
                     <Cloud className="h-3.5 w-3.5 text-forest-700" />
-                    <span>{!online ? "أوفلاين" : syncStatus.state === "unavailable" ? syncStatus.errorMessage || "السيرفر غير متاح" : syncStatus.state === "error" ? syncStatus.errorMessage || "تعذرت المزامنة" : "مزامنة سحابية"}</span>
+                    <span>{syncStatus.state === "disabled" ? "المزامنة السحابية غير مفعّلة" : !online ? "أوفلاين" : syncStatus.state === "unavailable" ? syncStatus.errorMessage || "السيرفر غير متاح" : syncStatus.state === "error" ? syncStatus.errorMessage || "تعذرت المزامنة" : "مزامنة سحابية"}</span>
                   </>
                 )}
                 {pendingCount > 0 ? <span>({pendingCount} تعديلات معلّقة)</span> : null}

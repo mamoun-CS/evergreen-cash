@@ -7,6 +7,7 @@ import { shapeArabic, splitLines } from "@/lib/pdf/arabic";
 import type { InvoiceLineRecord, InvoiceRecord, PersonRecord } from "@/lib/finance/types";
 import type { AppSettingsRecord } from "@/lib/finance/types";
 import { formatDateAr } from "@/lib/time";
+import { saveOrShareFile } from "@/lib/files";
 
 async function loadFontBytes(): Promise<ArrayBuffer> {
     if (typeof window !== "undefined" && typeof fetch === "function") {
@@ -215,21 +216,5 @@ async function loadFontBytes(): Promise<ArrayBuffer> {
         }
 
         export async function shareOrDownloadPdf(bytes: Uint8Array, fileName: string): Promise<void> {
-          const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
-          const file = new File([blob], fileName, { type: "application/pdf" });
-          const nav = navigator as Navigator & { share?: (data: ShareData) => Promise<void>; canShare?: (data: ShareData) => boolean };
-          if (nav.share && (!nav.canShare || nav.canShare({ files: [file] }))) {
-            try {
-              await nav.share({ files: [file], title: fileName });
-              return;
-            } catch (error) {
-              if ((error as Error).name === "AbortError") return;
-            }
-          }
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement("a");
-          anchor.href = url;
-          anchor.download = fileName;
-          anchor.click();
-          URL.revokeObjectURL(url);
+          await saveOrShareFile(bytes, fileName, "application/pdf");
         }

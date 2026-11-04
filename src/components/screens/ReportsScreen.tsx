@@ -32,7 +32,7 @@ type ReportType =
   | "reconciliations";
 
 export function ReportsScreen() {
-  const { bump, settings } = useApp();
+  const { bump, settings, toast } = useApp();
   const [reportType, setReportType] = useState<ReportType>("cash");
   const [fromDate, setFromDate] = useState(() => {
     const d = new Date();
@@ -114,7 +114,7 @@ export function ReportsScreen() {
   const totalAdvances = filteredLedger.reduce((s, e) => s + BigInt(e.advanceDeltaMinor), 0n);
 
   // CSV Export
-  function handleExportCsv() {
+  async function handleExportCsv() {
     let headers: string[] = [];
     let rows: Array<Array<string | number>> = [];
     const fileName = `report-${reportType}-${fromDate}-to-${toDate}.csv`;
@@ -163,7 +163,11 @@ export function ReportsScreen() {
     }
 
     const csvContent = toCsv(headers, rows);
-    downloadCsv(fileName, csvContent);
+    try {
+      await downloadCsv(fileName, csvContent);
+    } catch {
+      toast("تعذر مشاركة أو تنزيل ملف CSV", "err");
+    }
   }
 
   // PDF Export

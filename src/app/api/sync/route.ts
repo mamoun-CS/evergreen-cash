@@ -30,6 +30,24 @@ const hits = new Map<string, { count: number; resetAt: number }>();
 function responseError(error: string, status: number) {
   return NextResponse.json({ error }, { status });
 }
+function withCors(request: Request, response: NextResponse): NextResponse {
+  const origin = request.headers.get("origin");
+  let allowedOrigin = origin === "capacitor://localhost";
+  if (origin) {
+    try {
+      const parsed = new URL(origin);
+      allowedOrigin ||= parsed.protocol === "http:" && parsed.hostname === "localhost";
+    } catch {
+      allowedOrigin = false;
+    }
+  }
+  if (allowedOrigin && origin) response.headers.set("Access-Control-Allow-Origin", origin);
+  response.headers.set("Vary", "Origin");
+  response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  response.headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  response.headers.set("Access-Control-Max-Age", "86400");
+  return response;
+}
 function authorized(request: Request): boolean | null {
   const key = process.env.SYNC_API_KEY;
   if (!key) return null;
@@ -59,7 +77,7 @@ function gate(request: Request): NextResponse | null {
   return null;
 }
 
-export async function GET(request: Request) {
+async function getSync(request: Request) {
   const rejected = gate(request);
   if (rejected) return rejected;
   try {
@@ -78,7 +96,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+async function postSync(request: Request) {
   const rejected = gate(request);
   if (rejected) return rejected;
   try {
@@ -113,4 +131,16 @@ export async function POST(request: Request) {
     console.error("Sync push error:", error);
     return responseError("تعذر رفع بيانات المزامنة", 500);
   }
+}
+
+export async function GET(request: Request) {
+  return withCors(request, await getSync(request));
+}
+
+export async function POST(request: Request) {
+  return withCors(request, await postSync(request));
+}
+
+export function OPTIONS(request: Request) {
+  return withCors(request, new NextResponse(null, { status: 204 }));
 }

@@ -10,6 +10,10 @@ import { registerServiceWorker } from "@/lib/pwa/register";
 import { performAutoSync, scheduleSync, type SyncStatus } from "@/lib/sync/autoSync";
 import { Button, Input } from "@/components/ui/primitives";
 import { createAutomaticBackup } from "@/lib/backup/service";
+import { getApiUrl } from "@/lib/apiBase";
+import { isNative } from "@/lib/native";
+import { StatusBar, Style } from "@capacitor/status-bar";
+import { SplashScreen } from "@capacitor/splash-screen";
 
 interface Toast {
   id: number;
@@ -106,10 +110,15 @@ export function Providers({ children }: { children: ReactNode }) {
     };
     const checkServer = async () => {
       if (!navigator.onLine) return;
+      const healthUrl = getApiUrl("/api/health");
+      if (!healthUrl) {
+        if (isNative()) setSyncStatus({ state: "disabled", lastSyncTime: null });
+        return;
+      }
       const controller = new AbortController();
       const timer = window.setTimeout(() => controller.abort(), 8000);
       try {
-        const response = await fetch("/api/health", { method: "GET", cache: "no-store", signal: controller.signal });
+        const response = await fetch(healthUrl, { method: "GET", cache: "no-store", signal: controller.signal });
         if (!response.ok) setSyncStatus({ state: "unavailable", lastSyncTime: null, errorMessage: "السيرفر غير متاح حالياً" });
         else setSyncStatus((current) =>
           current.state === "unavailable" && current.errorMessage === "السيرفر غير متاح حالياً"
@@ -143,10 +152,17 @@ export function Providers({ children }: { children: ReactNode }) {
     document.addEventListener("visibilitychange", runOnVisible);
     registerServiceWorker({
       onWaiting: (worker) => {
+        if (isNative()) return;
         setWaitingWorker(worker);
         setPendingUpdate(true);
       },
     });
+    if (isNative()) {
+      void Promise.all([
+        StatusBar.setStyle({ style: Style.Light }),
+        StatusBar.setBackgroundColor({ color: "#0f3d2e" }),
+      ]).catch((error) => console.warn("تعذر ضبط شريط الحالة:", error));
+    }
     void (async () => {
       await enablePersistentStorage();
       await ensureDefaults(getDb());
@@ -157,6 +173,7 @@ export function Providers({ children }: { children: ReactNode }) {
       if (navigator.onLine) await triggerSync();
       else setSyncStatus({ state: "offline", lastSyncTime: null });
       setReady(true);
+      if (isNative()) void SplashScreen.hide().catch((error) => console.warn("تعذر إخفاء شاشة البداية:", error));
       void checkServer();
       await autoBackup();
     })();
@@ -217,6 +234,7 @@ export function Providers({ children }: { children: ReactNode }) {
   }, [settings, unlocked]);
 
   const applyUpdate = useCallback(() => {
+    if (isNative()) return;
     waitingWorker?.postMessage({ type: "SKIP_WAITING" });
     window.location.reload();
   }, [waitingWorker]);
@@ -229,7 +247,7 @@ export function Providers({ children }: { children: ReactNode }) {
       refresh,
       bump,
       toast,
-      pendingUpdate,
+      pendingUpdate: isNative() ? false : pendingUpdate,
       applyUpdate,
       syncStatus,
       triggerSync,

@@ -1,0 +1,48 @@
+
+workflows:
+  ios-testflight:
+    name: EverGreen CASH iOS
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+
+    integrations:
+      app_store_connect: AppStoreConnect
+
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.evergreen.cash
+
+      vars:
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+
+      node: 22
+
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+
+      - name: Build Next.js Native
+        script: npm run build:native
+
+      - name: Sync Capacitor
+        script: npm run cap:sync
+
+      - name: Configure signing
+        script: xcode-project use-profiles
+
+      - name: Build iOS IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

@@ -1,5 +1,11 @@
+import { isNative } from "@/lib/native";
+
 export function registerServiceWorker(hooks: { onWaiting: (worker: ServiceWorker) => void }): void {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+  if (isNative()) {
+    void removeNativeServiceWorker();
+    return;
+  }
   if (process.env.NODE_ENV !== "production") {
     void removeDevelopmentServiceWorker();
     return;
@@ -19,6 +25,22 @@ export function registerServiceWorker(hooks: { onWaiting: (worker: ServiceWorker
   };
   if (document.readyState === "complete") register();
   else window.addEventListener("load", register, { once: true });
+}
+
+async function removeNativeServiceWorker(): Promise<void> {
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    const appRegistrations = registrations.filter((registration) =>
+      [registration.active, registration.waiting, registration.installing].some((worker) =>
+        worker && new URL(worker.scriptURL).pathname === "/sw.js",
+      ),
+    );
+    await Promise.all(appRegistrations.map((registration) => registration.unregister()));
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((key) => key.startsWith("evergreen-cash-")).map((key) => caches.delete(key)));
+  } catch (error) {
+    console.warn("تعذر تنظيف Service Worker في التطبيق الأصلي:", error);
+  }
 }
 
 async function removeDevelopmentServiceWorker(): Promise<void> {

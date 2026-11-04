@@ -114,14 +114,18 @@ export async function enablePersistentStorage(): Promise<boolean> {
     try {
       const isPersisted = await navigator.storage.persisted();
       if (!isPersisted) {
-        return await navigator.storage.persist();
+        const persisted = await navigator.storage.persist();
+        console.info("نتيجة طلب حفظ بيانات التطبيق محلياً:", persisted ? "مُفعّل" : "غير متاح/مرفوض");
+        return persisted;
       }
+      console.info("نتيجة طلب حفظ بيانات التطبيق محلياً:", "مُفعّل مسبقاً");
       return isPersisted;
     } catch (err) {
       console.warn("Could not request persistent storage:", err);
       return false;
     }
   }
+  console.info("نتيجة طلب حفظ بيانات التطبيق محلياً:", "واجهة التخزين الدائم غير مدعومة");
   return false;
 }
 

@@ -50,6 +50,19 @@ body {
   margin: 0;
 }
 
+.app-safe-area {
+  padding-block: env(safe-area-inset-top) env(safe-area-inset-bottom);
+}
+
+.app-safe-area > .app-sidebar {
+  top: env(safe-area-inset-top);
+  bottom: env(safe-area-inset-bottom);
+}
+
+.app-safe-area > .app-safe-overlay {
+  inset-block: env(safe-area-inset-top) env(safe-area-inset-bottom);
+}
+
 button,
 input,
 select,

@@ -21,9 +21,12 @@ import {
   X,
 } from "lucide-react";
 import type { BackupMetaRecord } from "@/lib/finance/types";
+import { isNative } from "@/lib/native";
+import { getApiBaseUrl } from "@/lib/apiBase";
 
 export function BackupScreen() {
-  const { bump, refresh, toast } = useApp();
+  const { bump, refresh, toast, ready } = useApp();
+  const nativeApp = ready && isNative();
   const [localHistory, setLocalHistory] = useState<BackupMetaRecord[]>([]);
 
   // Backup passphrases
@@ -162,6 +165,12 @@ export function BackupScreen() {
         </div>
       </Card>
 
+      {nativeApp && !getApiBaseUrl() ? (
+        <div role="note" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-950">
+          التطبيق يخزّن بياناتك على الجهاز فقط، صدّر نسخة .egc بشكل دوري.
+        </div>
+      ) : null}
+
       {/* Cloud Sync Banner */}
       <Card className="border border-forest-900/20 bg-forest-50 p-4">
         <div className="flex items-center gap-3">
@@ -169,9 +178,11 @@ export function BackupScreen() {
             <Cloud className="h-6 w-6 text-forest-800" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-forest-900">المزامنة السحابية التلقائية</h3>
+            <h3 className="text-base font-bold text-forest-900">{nativeApp && !getApiBaseUrl() ? "المزامنة السحابية غير مفعّلة" : "المزامنة السحابية التلقائية"}</h3>
             <p className="text-xs text-muted mt-0.5 leading-relaxed">
-              يتم مزامنة بياناتك تلقائياً مع قاعدة بيانات Vercel Postgres عند الاتصال بالإنترنت. يعمل التطبيق بشكل كامل بدون الإنترنت ويُزامن عند العودة للاتصال.
+              {nativeApp && !getApiBaseUrl()
+                ? "يعمل التطبيق محلياً دون إرسال بيانات عبر الشبكة. يمكن تفعيل المزامنة عند بناء التطبيق مع عنوان API موثوق."
+                : "تتم مزامنة بياناتك تلقائياً مع قاعدة البيانات عند الاتصال بالإنترنت. يعمل التطبيق بدون الإنترنت ويزامن عند عودة الاتصال."}
             </p>
           </div>
         </div>
@@ -227,7 +238,7 @@ export function BackupScreen() {
           <FileKey className="h-8 w-8 text-forest-800 mb-2" />
           <span className="text-sm font-bold text-forest-900">اضغط لاختيار ملف نسخة (.egc)</span>
           <span className="text-xs text-muted mt-1">من تطبيق Files أو التخزين الداخلي</span>
-          <input type="file" accept=".egc" className="hidden" onChange={handleFileSelected} />
+          <input type="file" accept=".egc,application/octet-stream" className="hidden" onChange={handleFileSelected} />
         </label>
       </Card>
 

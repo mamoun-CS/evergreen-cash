@@ -12,6 +12,7 @@ import {
 export type { BackupDocument };
 import type { BackupMetaRecord } from "@/lib/finance/types";
 import { notifyBackupCompleted } from "@/lib/sync/events";
+import { saveOrShareFile } from "@/lib/files";
 
 function fileNameFor(date = new Date()): string {
   const stamp = date.toISOString().replace(/[:.]/g, "-");
@@ -27,13 +28,7 @@ export async function createEncryptedBackup(passphrase: string) {
 
 export async function exportEncryptedFile(passphrase: string): Promise<void> {
   const { snapshot, encrypted, fileName } = await createEncryptedBackup(passphrase);
-  const blob = new Blob([encrypted.bytes as BlobPart], { type: "application/octet-stream" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  a.click();
-  URL.revokeObjectURL(url);
+  await saveOrShareFile(encrypted.bytes, fileName, "application/octet-stream");
   await getDb().backupMeta.add({
     id: createId(),
     createdAt: nowIso(),

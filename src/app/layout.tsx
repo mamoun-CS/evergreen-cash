@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Providers } from "@/components/providers";
 import { AppShell } from "@/components/layout/AppShell";
 import "./globals.css";
@@ -11,6 +11,12 @@ export const metadata: Metadata = {
     icon: "/icon-192.png",
     apple: "/apple-touch-icon.png",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#0f3d2e",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

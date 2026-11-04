@@ -44,4 +44,21 @@ describe("حماية واجهة المزامنة", () => {
     for (let i = 0; i < 61; i += 1) last = await GET(new Request("http://localhost/api/sync", { headers: { Authorization: "Bearer api-test-key", "x-forwarded-for": "198.51.100.17" } }));
     expect(last?.status).toBe(429);
   });
+
+  it("يسمح بطلبات CORS المسبقة من Capacitor وlocalhost", async () => {
+    const { OPTIONS } = await import("@/app/api/sync/route");
+    const native = OPTIONS(new Request("http://localhost/api/sync", { method: "OPTIONS", headers: { origin: "capacitor://localhost" } }));
+    expect(native.status).toBe(204);
+    expect(native.headers.get("Access-Control-Allow-Origin")).toBe("capacitor://localhost");
+    expect(native.headers.get("Access-Control-Allow-Headers")).toContain("Authorization");
+
+    const local = OPTIONS(new Request("http://localhost/api/sync", { method: "OPTIONS", headers: { origin: "http://localhost:8100" } }));
+    expect(local.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:8100");
+  });
+
+  it("يعيد ترويسات CORS لفحص الصحة أيضاً", async () => {
+    const { GET } = await import("@/app/api/health/route");
+    const response = GET(new Request("http://localhost/api/health", { headers: { origin: "capacitor://localhost" } }));
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("capacitor://localhost");
+  });
 });

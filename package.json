@@ -5,13 +5,22 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
+    "build:native": "node scripts/build-native.mjs",
     "start": "next start",
+    "cap:sync": "npx cap sync ios",
+    "cap:open": "npx cap open ios",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/share": "^8.0.3",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4",
     "@fontsource/cairo": "^5.3.0",
     "@hookform/resolvers": "^7.0.1",
     "@neondatabase/serverless": "^1.2.0",
@@ -33,6 +42,8 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@capacitor/assets": "^4.0.0",
+    "@capacitor/cli": "^8.6.0",
     "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4.3.4",
     "@tailwindcss/turbopack": "^4",
