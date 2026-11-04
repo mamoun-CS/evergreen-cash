@@ -7,6 +7,7 @@
     "build": "next build --webpack",
     "build:native": "node scripts/build-native.mjs",
     "start": "next start",
+    "cap": "npx cap sync ios",
     "cap:sync": "npx cap sync ios",
     "cap:open": "npx cap open ios",
     "lint": "eslint",

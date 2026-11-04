@@ -9,25 +9,49 @@ workflows:
       app_store_connect: AppStoreConnect
 
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.evergreen.cash
+      groups:
+        - ios_signing_credentials
 
       vars:
-        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
 
       node: 22
+      xcode: latest
 
     scripts:
       - name: Install dependencies
         script: npm ci
 
+      - name: Build web app
+        script: npm run build
+
       - name: Build Next.js Native
         script: npm run build:native
 
       - name: Sync Capacitor
-        script: npm run cap:sync
+        script: npm run cap
+
+      - name: Set iOS build number
+        script: |
+          NEXT_IOS_BUILD_NUMBER="$PROJECT_BUILD_NUMBER"
+          if [ -n "${APP_STORE_APPLE_ID:-}" ]; then
+            LATEST_APP_STORE_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID")
+            if [ "$LATEST_APP_STORE_BUILD_NUMBER" -ge "$NEXT_IOS_BUILD_NUMBER" ]; then
+              NEXT_IOS_BUILD_NUMBER=$((LATEST_APP_STORE_BUILD_NUMBER + 1))
+            fi
+          fi
+          cd ios/App
+          agvtool new-version -all "$NEXT_IOS_BUILD_NUMBER"
+
+      - name: Initialize signing keychain
+        script: keychain initialize
+
+      - name: Fetch or create App Store signing files
+        script: app-store-connect fetch-signing-files com.evergreen.cash --type IOS_APP_STORE --create
+
+      - name: Install Apple Distribution certificate
+        script: keychain add-certificates
 
       - name: Configure signing
         script: xcode-project use-profiles
@@ -35,7 +59,7 @@ workflows:
       - name: Build iOS IPA
         script: |
           xcode-project build-ipa \
-            --workspace "$XCODE_WORKSPACE" \
+            --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME"
 
     artifacts:
