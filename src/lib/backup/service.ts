@@ -11,6 +11,7 @@ import {
 } from "@/lib/backup/serialize";
 export type { BackupDocument };
 import type { BackupMetaRecord } from "@/lib/finance/types";
+import { notifyBackupCompleted } from "@/lib/sync/events";
 
 function fileNameFor(date = new Date()): string {
   const stamp = date.toISOString().replace(/[:.]/g, "-");
@@ -42,11 +43,31 @@ export async function exportEncryptedFile(passphrase: string): Promise<void> {
     recordCountsJson: JSON.stringify(snapshot.recordCounts),
     verified: true,
   });
+  const current = await getDb().settings.get("app");
+  if (current) await getDb().settings.put({ ...current, lastSuccessfulBackupAt: nowIso() });
+  notifyBackupCompleted();
+}
+
+export async function createAutomaticBackup(passphrase: string, keepCount: number): Promise<void> {
+  const { snapshot, encrypted, fileName } = await createEncryptedBackup(passphrase);
+  const db = getDb();
+  const createdAt = nowIso();
+  const bytes = encrypted.bytes.buffer.slice(encrypted.bytes.byteOffset, encrypted.bytes.byteOffset + encrypted.bytes.byteLength) as ArrayBuffer;
+  await db.transaction("rw", [db.localBackups, db.backupMeta, db.settings], async () => {
+    await db.localBackups.add({ id: createId(), createdAt, fileName, bytes });
+    await db.backupMeta.add({ id: createId(), createdAt, status: "success", destination: "file", fileName, recordCountsJson: JSON.stringify(snapshot.recordCounts), verified: true });
+    const current = await db.settings.get("app");
+    if (current) await db.settings.put({ ...current, lastSuccessfulBackupAt: createdAt });
+    const all = await db.localBackups.orderBy("createdAt").toArray();
+    const excess = Math.max(0, all.length - Math.max(1, keepCount));
+    if (excess) await db.localBackups.bulkDelete(all.slice(0, excess).map((record) => record.id));
+  });
+  notifyBackupCompleted();
 }
 
 export async function previewEncryptedBackup(bytes: Uint8Array, passphrase: string): Promise<BackupDocument> {
   const json = await decryptBackupPayload(bytes, passphrase);
-  return parseAndValidateBackup(json);
+  return await parseAndValidateBackup(json);
 }
 
 export async function restoreFromBytes(bytes: Uint8Array, passphrase: string): Promise<void> {
@@ -63,6 +84,7 @@ export async function restoreFromBytes(bytes: Uint8Array, passphrase: string): P
   });
   try {
     await restoreSnapshot(incoming);
+    window.dispatchEvent(new Event("egc:data-changed"));
   } catch (error) {
     await restoreSnapshot(safety.snapshot);
     throw error;

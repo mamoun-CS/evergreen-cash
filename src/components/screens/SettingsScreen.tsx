@@ -2,17 +2,12 @@
 
 import { useState } from "react";
 import { saveSettings } from "@/lib/services/financeService";
+import { getDb } from "@/lib/db/database";
 import { enablePin, disablePin, useApp } from "@/components/providers";
 import { Card, Button, Input, Select, Textarea, Field } from "@/components/ui/primitives";
-import {
-  Lock,
-  Building,
-  FileText,
-  Save,
-  HardDrive,
-} from "lucide-react";
 import { CURRENCIES } from "@/lib/currencies";
 import { APP_VERSION, SCHEMA_VERSION } from "@/lib/version";
+import { Lock, Building, FileText, Save, HardDrive } from "lucide-react";
 
 export function SettingsScreen() {
   const { settings, refresh, toast, notifyDataChanged } = useApp();
@@ -38,11 +33,33 @@ export function SettingsScreen() {
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [autoLockMinutes, setAutoLockMinutes] = useState(String(settings?.autoLockMinutes || 5));
+  const [syncApiKey, setSyncApiKey] = useState("");
+  const [syncPassphrase, setSyncPassphrase] = useState("");
+  const [backupPassphrase, setBackupPassphrase] = useState("");
+  const [backupPassphraseConfirm, setBackupPassphraseConfirm] = useState("");
+  const [backupPhraseChanged, setBackupPhraseChanged] = useState(false);
+
+  useState(() => {
+    void Promise.all([getDb().syncMeta.get("syncApiKey"), getDb().syncMeta.get("syncPassphrase"), getDb().syncMeta.get("backupPassphrase")]).then(([key, phrase, backup]) => {
+      setSyncApiKey(String(key?.value || ""));
+      setSyncPassphrase(String(phrase?.value || ""));
+      setBackupPassphrase(String(backup?.value || ""));
+    });
+    return null;
+  });
 
   const [saving, setSaving] = useState(false);
 
   async function handleSaveSettings(e: React.FormEvent) {
     e.preventDefault();
+    if (backupPhraseChanged && backupPassphrase && backupPassphrase.length < 10) {
+      toast("عبارة النسخ الاحتياطي يجب أن تتكون من 10 أحرف على الأقل", "warn");
+      return;
+    }
+    if (backupPhraseChanged && backupPassphrase !== backupPassphraseConfirm) {
+      toast("تأكيد عبارة النسخ الاحتياطي غير متطابق", "warn");
+      return;
+    }
     try {
       setSaving(true);
       await saveSettings({
@@ -58,6 +75,13 @@ export function SettingsScreen() {
         keepBackupCount: parseInt(keepBackupCount, 10) || 7,
         autoLockMinutes: parseInt(autoLockMinutes, 10) || 5,
       });
+      const currentSyncKey = await getDb().syncMeta.get("syncApiKey");
+      if (syncApiKey.trim()) await getDb().syncMeta.put({ key: "syncApiKey", value: syncApiKey.trim() });
+      else if (currentSyncKey) await getDb().syncMeta.delete("syncApiKey");
+      const currentPassphrase = await getDb().syncMeta.get("syncPassphrase");
+      if (syncPassphrase.trim().length >= 10) await getDb().syncMeta.put({ key: "syncPassphrase", value: syncPassphrase.trim() });
+      else if (currentPassphrase && !syncPassphrase.trim()) await getDb().syncMeta.delete("syncPassphrase");
+      if (backupPassphrase.trim().length >= 10) await getDb().syncMeta.put({ key: "backupPassphrase", value: backupPassphrase.trim() });
 
       // Handle PIN toggle
       if (pinEnabled && !settings?.pinEnabled) {
@@ -239,6 +263,31 @@ export function SettingsScreen() {
                 </Field>
               </div>
             )}
+          </div>
+        </Card>
+
+        {/* Auto Backup & Storage Information */}
+        <Card>
+          <div className="mb-4 border-b border-forest-900/10 pb-3">
+            <h2 className="text-lg font-bold text-forest-900">المزامنة بين الأجهزة</h2>
+          </div>
+          <Field label="مفتاح المزامنة (يُحفظ على هذا الجهاز فقط)">
+            <Input type="password" autoComplete="new-password" value={syncApiKey} onChange={(e) => setSyncApiKey(e.target.value)} dir="ltr" />
+          </Field>
+          <div className="mt-3">
+            <Field label="عبارة مرور تشفير المزامنة (10 أحرف على الأقل، متطابقة على كل الأجهزة)">
+              <Input type="password" autoComplete="new-password" value={syncPassphrase} onChange={(e) => setSyncPassphrase(e.target.value)} dir="ltr" />
+            </Field>
+          </div>
+          <p className="mt-2 text-xs text-muted">المفتاح والعبارة يُحفظان في IndexedDB على هذا الجهاز فقط. اضبط المفتاح نفسه في SYNC_API_KEY على الخادم.</p>
+          <div className="mt-3">
+            <Field label="عبارة النسخ التلقائي المشفر (10 أحرف على الأقل)">
+              <Input type="password" autoComplete="new-password" value={backupPassphrase} onChange={(e) => { setBackupPassphrase(e.target.value); setBackupPhraseChanged(true); }} dir="ltr" />
+            </Field>
+            <Field label="تأكيد عبارة النسخ التلقائي">
+              <Input type="password" autoComplete="new-password" value={backupPassphraseConfirm} onChange={(e) => setBackupPassphraseConfirm(e.target.value)} dir="ltr" />
+            </Field>
+            <p className="mt-2 text-xs text-warning">احتفظ بهذه العبارة بأمان؛ فقدانها يعني تعذر استعادة النسخ المشفرة.</p>
           </div>
         </Card>
 

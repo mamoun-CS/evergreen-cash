@@ -73,6 +73,11 @@ async function markDirty(db: EverGreenDatabase): Promise<void> {
   if (settings) {
     await db.settings.put({ ...settings, dirtySince: settings.dirtySince ?? nowIso() });
   }
+  await db.outbox.add({
+    id: createId(), table: "__snapshot__", recordId: createId(), op: "put",
+    payload: { reason: "تغيير بيانات محلي" }, createdAt: nowIso(), attempts: 0,
+  });
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("egc:data-changed"));
 }
 
 export async function getSettings(): Promise<AppSettingsRecord> {
@@ -240,7 +245,7 @@ export async function createTransaction(input: {
 
   return db.transaction(
     "rw",
-    [db.sequences, db.ledgerEvents, db.transactions, db.auditLogs, db.settings, db.people, db.invoices],
+    [db.sequences, db.ledgerEvents, db.transactions, db.auditLogs, db.settings, db.people, db.invoices, db.outbox],
     async () => {
       if (input.personId) {
         const person = await db.people.get(input.personId);
@@ -316,7 +321,7 @@ export async function correctTransaction(
   const db = getDb();
   return db.transaction(
     "rw",
-    [db.sequences, db.ledgerEvents, db.transactions, db.auditLogs, db.settings, db.people, db.invoices],
+    [db.sequences, db.ledgerEvents, db.transactions, db.auditLogs, db.settings, db.people, db.invoices, db.outbox],
     async () => {
       const tx = await db.transactions.get(transactionId);
       if (!tx) throw new ValidationError("الحركة غير موجودة.");
@@ -391,7 +396,7 @@ export async function reverseTransaction(transactionId: string, reason: string):
   const db = getDb();
   return db.transaction(
     "rw",
-    [db.sequences, db.ledgerEvents, db.transactions, db.auditLogs, db.settings, db.invoices],
+    [db.sequences, db.ledgerEvents, db.transactions, db.auditLogs, db.settings, db.invoices, db.outbox],
     async () => {
       const tx = await db.transactions.get(transactionId);
       if (!tx) throw new ValidationError("الحركة غير موجودة.");
@@ -494,7 +499,7 @@ export async function saveInvoice(input: {
 
   return db.transaction(
     "rw",
-    [db.invoices, db.invoiceLines, db.invoiceRevisions, db.sequences, db.auditLogs, db.settings, db.people],
+    [db.invoices, db.invoiceLines, db.invoiceRevisions, db.sequences, db.auditLogs, db.settings, db.people, db.outbox],
     async () => {
       const existing = input.id ? await db.invoices.get(input.id) : undefined;
       if (existing?.status === "canceled") throw new ValidationError("لا يمكن تعديل فاتورة ملغاة.");
@@ -667,7 +672,7 @@ export async function createReconciliation(input: {
 
   return db.transaction(
     "rw",
-    [db.reconciliations, db.transactions, db.ledgerEvents, db.sequences, db.auditLogs, db.settings, db.people, db.invoices],
+    [db.reconciliations, db.transactions, db.ledgerEvents, db.sequences, db.auditLogs, db.settings, db.people, db.invoices, db.outbox],
     async () => {
       const rec: ReconciliationRecord = {
         id: createId(),

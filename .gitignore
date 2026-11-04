@@ -12,6 +12,10 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/build.log
+/build.pid
 
 # next.js
 /.next/

@@ -16,12 +16,12 @@ import {
   WifiOff,
   Wifi,
   Cloud,
-  CloudCheck,
   RefreshCw,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApp } from "@/components/providers";
 import { Button, cn } from "@/components/ui/primitives";
+import { getDb } from "@/lib/db/database";
 
 const NAV = [
   { href: "/", label: "لوحة التحكم", icon: LayoutDashboard },
@@ -38,6 +38,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { online, pendingUpdate, applyUpdate, settings, ready, syncStatus, triggerSync } = useApp();
   const [open, setOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  useEffect(() => {
+    let live = true;
+    const load = () => void getDb().outbox.count().then((count) => { if (live) setPendingCount(count); });
+    load();
+    window.addEventListener("egc:data-changed", load);
+    const timer = window.setInterval(load, 5000);
+    return () => { live = false; window.removeEventListener("egc:data-changed", load); window.clearInterval(timer); };
+  }, []);
 
   return (
     <div className="min-h-dvh bg-cream text-ink">
@@ -48,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <NavLink key={item.href} {...item} active={pathname === item.href} />
           ))}
         </nav>
-        <p className="px-6 pb-6 text-xs text-white/50">تخزين محلي على هذا الجهاز — بلا خادم يومي.</p>
+        <p className="px-6 pb-6 text-xs text-white/50">حفظ محلي فوري — ومزامنة سحابية تلقائية.</p>
       </aside>
 
       {open ? (
@@ -76,9 +85,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* Cloud Auto-Sync Indicator */}
-            {online && (
+              <div className="flex items-center gap-2">
               <button
-                onClick={() => void triggerSync()}
+                onClick={() => { if (online) void triggerSync(); }}
                 title="مزامنة سحابية مع قاعدة بيانات Vercel"
                 className="flex items-center gap-1.5 rounded-xl border border-forest-900/10 bg-white/70 px-2.5 py-1 text-xs font-medium text-forest-900 hover:bg-white transition"
               >
@@ -95,11 +104,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 ) : (
                   <>
                     <Cloud className="h-3.5 w-3.5 text-forest-700" />
-                    <span>مزامنة سحابية</span>
+                    <span>{!online ? "أوفلاين" : syncStatus.state === "unavailable" ? syncStatus.errorMessage || "السيرفر غير متاح" : syncStatus.state === "error" ? syncStatus.errorMessage || "تعذرت المزامنة" : "مزامنة سحابية"}</span>
                   </>
                 )}
+                {pendingCount > 0 ? <span>({pendingCount} تعديلات معلّقة)</span> : null}
               </button>
-            )}
+              {online && (syncStatus.state === "error" || syncStatus.state === "unavailable") ? <Button variant="ghost" onClick={() => void triggerSync()} className="px-2">إعادة المحاولة</Button> : null}
+              </div>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted">
             <Wallet className="h-4 w-4" />
@@ -166,7 +177,7 @@ function Splash() {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
       <img src="/logo.jpg" alt="" className="h-28 w-28 rounded-full object-cover" />
-      <p className="text-xl font-bold text-forest-900">جاري تجهيز الصندوق المحلي…</p>
+      <p className="text-xl font-bold text-forest-900">جاري تجهيز بيانات الصندوق…</p>
     </div>
   );
 }

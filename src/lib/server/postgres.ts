@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 
 let globalPool: Pool | null = null;
+let tablesReady: Promise<void> | null = null;
 
 export function getDbUrl(): string {
   return (
@@ -24,9 +25,7 @@ export function getPool(): Pool {
   if (!globalPool) {
     globalPool = new Pool({
       connectionString,
-      ssl: {
-        rejectUnauthorized: false,
-      },
+      ssl: process.env.POSTGRES_SSL === "false" ? false : true,
       max: 10,
       idleTimeoutMillis: 30000,
     });
@@ -45,13 +44,15 @@ export async function query<T = unknown>(text: string, params: unknown[] = []): 
  * Initializes the required tables in Postgres if they do not exist yet.
  */
 export async function initPostgresTables(): Promise<void> {
+  if (tablesReady) return tablesReady;
   const pool = getPool();
-
+  tablesReady = (async () => {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS egc_sync_state (
       id TEXT PRIMARY KEY,
       company_name TEXT NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      revision INTEGER NOT NULL DEFAULT 1,
       record_counts JSONB NOT NULL,
       checksum TEXT NOT NULL,
       data JSONB NOT NULL
@@ -66,4 +67,7 @@ export async function initPostgresTables(): Promise<void> {
       device_info TEXT
     );
   `);
+  await pool.query(`ALTER TABLE egc_sync_state ADD COLUMN IF NOT EXISTS revision INTEGER NOT NULL DEFAULT 1`);
+  })();
+  try { await tablesReady; } catch (error) { tablesReady = null; throw error; }
 }

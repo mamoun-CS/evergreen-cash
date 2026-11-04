@@ -9,6 +9,7 @@ import type { AppSettingsRecord } from "@/lib/finance/types";
 import { registerServiceWorker } from "@/lib/pwa/register";
 import { performAutoSync, scheduleSync, type SyncStatus } from "@/lib/sync/autoSync";
 import { Button, Input } from "@/components/ui/primitives";
+import { createAutomaticBackup } from "@/lib/backup/service";
 
 interface Toast {
   id: number;
@@ -41,7 +42,9 @@ export function useApp() {
 export function Providers({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [settings, setSettings] = useState<AppSettingsRecord | null>(null);
-  const [online, setOnline] = useState(true);
+  // Keep the server render and the client's first render identical. The actual
+  // network state is read after mount, when browser APIs are available.
+  const [online, setOnline] = useState(false);
   const [bump, setBump] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [pendingUpdate, setPendingUpdate] = useState(false);
@@ -87,6 +90,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     lastActiveRef.current = Date.now();
+    const initialOnlineCheck = window.setTimeout(() => setOnline(navigator.onLine), 0);
     const on = () => {
       setOnline(true);
       setSyncStatus((s) => ({ ...s, state: "syncing" }));
@@ -100,26 +104,88 @@ export function Providers({ children }: { children: ReactNode }) {
       setOnline(false);
       setSyncStatus((s) => ({ ...s, state: "offline" }));
     };
+    const checkServer = async () => {
+      if (!navigator.onLine) return;
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 8000);
+      try {
+        const response = await fetch("/api/health", { method: "GET", cache: "no-store", signal: controller.signal });
+        if (!response.ok) setSyncStatus({ state: "unavailable", lastSyncTime: null, errorMessage: "السيرفر غير متاح حالياً" });
+        else setSyncStatus((current) =>
+          current.state === "unavailable" && current.errorMessage === "السيرفر غير متاح حالياً"
+            ? { state: "idle", lastSyncTime: null }
+            : current,
+        );
+      } catch {
+        setSyncStatus({ state: "unavailable", lastSyncTime: null, errorMessage: "السيرفر غير متاح حالياً" });
+      } finally { window.clearTimeout(timer); }
+    };
+    const visibility = () => { if (document.visibilityState === "visible") { void checkServer(); void triggerSync(); } };
+    const autoBackup = async () => {
+      const current = await getDb().settings.get("app");
+      if (!current?.autoBackupEnabled) return;
+      const dueAt = Date.now() - (current.autoBackupIntervalMinutes || 60) * 60_000;
+      if (current.lastSuccessfulBackupAt && Date.parse(current.lastSuccessfulBackupAt) > dueAt) return;
+      const phrase = await getDb().syncMeta.get("backupPassphrase");
+      if (typeof phrase?.value === "string" && phrase.value.length >= 10) {
+        try { await createAutomaticBackup(phrase.value, current.keepBackupCount); }
+        catch { toast("فشل إنشاء النسخة الاحتياطية التلقائية المشفرة", "err"); }
+      }
+    };
+    const runOnVisible = () => { if (document.visibilityState === "visible") void autoBackup(); };
     window.addEventListener("online", on);
     window.addEventListener("offline", off);
+    const onDataChanged = () => notifyDataChanged();
+    window.addEventListener("egc:data-changed", onDataChanged);
+    const onSyncToast = (event: Event) => toast((event as CustomEvent<string>).detail, "warn");
+    window.addEventListener("egc:toast", onSyncToast);
+    document.addEventListener("visibilitychange", visibility);
+    document.addEventListener("visibilitychange", runOnVisible);
+    registerServiceWorker({
+      onWaiting: (worker) => {
+        setWaitingWorker(worker);
+        setPendingUpdate(true);
+      },
+    });
     void (async () => {
       await enablePersistentStorage();
       await ensureDefaults(getDb());
       await refresh();
+      // When online, finish the first pull/merge before exposing the local UI.
+      // If cloud sync is unavailable, performAutoSync returns an error status
+      // and the app still opens from its durable IndexedDB copy.
+      if (navigator.onLine) await triggerSync();
+      else setSyncStatus({ state: "offline", lastSyncTime: null });
       setReady(true);
-      void triggerSync();
-      registerServiceWorker({
-        onWaiting: (worker) => {
-          setWaitingWorker(worker);
-          setPendingUpdate(true);
-        },
-      });
+      void checkServer();
+      await autoBackup();
     })();
     return () => {
+      window.clearTimeout(initialOnlineCheck);
       window.removeEventListener("online", on);
       window.removeEventListener("offline", off);
+      window.removeEventListener("egc:data-changed", onDataChanged);
+      window.removeEventListener("egc:toast", onSyncToast);
+      document.removeEventListener("visibilitychange", visibility);
+      document.removeEventListener("visibilitychange", runOnVisible);
     };
-  }, [refresh, triggerSync]);
+  }, [refresh, triggerSync, notifyDataChanged, toast]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const timer = window.setInterval(async () => {
+      const current = await getDb().settings.get("app");
+      if (!current?.autoBackupEnabled) return;
+      const dueAt = Date.now() - (current.autoBackupIntervalMinutes || 60) * 60_000;
+      if (current.lastSuccessfulBackupAt && Date.parse(current.lastSuccessfulBackupAt) > dueAt) return;
+      const phrase = await getDb().syncMeta.get("backupPassphrase");
+      if (typeof phrase?.value === "string" && phrase.value.length >= 10) {
+        try { await createAutomaticBackup(phrase.value, current.keepBackupCount); }
+        catch { toast("فشل إنشاء النسخة الاحتياطية التلقائية المشفرة", "err"); }
+      }
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [ready, toast]);
 
   // Periodic background sync every 30 seconds when online (fallback for missed events)
   useEffect(() => {

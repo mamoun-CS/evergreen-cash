@@ -2,6 +2,7 @@ import { IntegrityError } from "@/lib/errors";
 import { getDb, TABLE_NAMES } from "@/lib/db/database";
 import { APP_VERSION, BACKUP_FORMAT_VERSION, BACKUP_MAGIC, SCHEMA_VERSION } from "@/lib/version";
 import { sha256Hex } from "@/lib/hash";
+import { verifyChain } from "@/lib/finance/ledger";
 
 export interface BackupDocument {
   magic: typeof BACKUP_MAGIC;
@@ -18,11 +19,19 @@ export async function snapshotDatabase(): Promise<BackupDocument> {
   const db = getDb();
   const data: Record<string, unknown[]> = {};
   const recordCounts: Record<string, number> = {};
-  for (const name of TABLE_NAMES) {
-    const rows = await db.table(name).toArray();
-    data[name] = rows;
-    recordCounts[name] = rows.length;
-  }
+  await db.transaction("r", TABLE_NAMES.map((name) => db.table(name)), async () => {
+    for (const name of TABLE_NAMES) {
+      const rows = await db.table(name).toArray();
+      data[name] = name === "settings"
+        ? rows.map((row) => {
+            const copy = { ...(row as Record<string, unknown>) };
+            for (const key of ["pinEnabled", "pinHash", "pinSalt", "pinIterations", "autoLockMinutes", "dirtySince", "syncApiKey"]) delete copy[key];
+            return copy;
+          })
+        : rows;
+      recordCounts[name] = data[name].length;
+    }
+  });
   const unsigned = {
     magic: BACKUP_MAGIC as typeof BACKUP_MAGIC,
     formatVersion: BACKUP_FORMAT_VERSION,
@@ -32,15 +41,23 @@ export async function snapshotDatabase(): Promise<BackupDocument> {
     recordCounts,
     data,
   };
-  const checksum = await sha256Hex(JSON.stringify(unsigned));
+  const checksum = await sha256Hex(stableStringify(data));
   return { ...unsigned, checksum };
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 export function serializeBackup(doc: BackupDocument): string {
   return JSON.stringify(doc);
 }
 
-export function parseAndValidateBackup(json: string): BackupDocument {
+export async function parseAndValidateBackup(json: string): Promise<BackupDocument> {
   let parsed: BackupDocument;
   try {
     parsed = JSON.parse(json) as BackupDocument;
@@ -61,11 +78,20 @@ export function parseAndValidateBackup(json: string): BackupDocument {
       throw new IntegrityError(`جدول مفقود في النسخة: ${name}`);
     }
   }
+  await verifyChain(parsed.data.ledgerEvents as never[]);
+  const unsigned = Object.fromEntries(Object.entries(parsed).filter(([key]) => key !== "checksum"));
+  const currentChecksum = await sha256Hex(stableStringify(parsed.data));
+  const legacyChecksum = await sha256Hex(JSON.stringify(unsigned));
+  if (parsed.checksum !== currentChecksum && parsed.checksum !== legacyChecksum) throw new IntegrityError("بصمة النسخة الاحتياطية غير صحيحة؛ تم رفض الاستعادة.");
   return parsed;
 }
 
+export function canonicalize(value: unknown): string {
+  return stableStringify(value);
+}
+
 export async function restoreSnapshot(doc: BackupDocument): Promise<void> {
-  const validated = parseAndValidateBackup(JSON.stringify(doc));
+  const validated = await parseAndValidateBackup(JSON.stringify(doc));
   const db = getDb();
   await db.transaction("rw", TABLE_NAMES.map((name) => db.table(name)), async () => {
     for (const name of TABLE_NAMES) {

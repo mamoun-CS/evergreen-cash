@@ -28,10 +28,13 @@ export class EverGreenDatabase extends Dexie {
   backupMeta!: EntityTable<BackupMetaRecord, "id">;
   sequences!: EntityTable<SequenceRecord, "name">;
   categories!: EntityTable<CategoryRecord, "id">;
+  syncMeta!: EntityTable<{ key: string; value?: string | number }, "key">;
+  outbox!: EntityTable<{ id: string; table: string; recordId: string; op: "put" | "delete"; payload?: unknown; createdAt: string; attempts: number; lastError?: string; nextAttemptAt?: string; batchId?: string }, "id">;
+  localBackups!: EntityTable<{ id: string; createdAt: string; fileName: string; bytes: ArrayBuffer }, "id">;
 
   constructor() {
     super("evergreen-cash");
-    this.version(SCHEMA_VERSION).stores({
+    this.version(1).stores({
       settings: "id",
       people: "id, fullName, phone, archived, createdAt",
       ledgerEvents: "id, sequence, type, transactionId, personId, invoiceId, occurredAt, createdAt, reversesEventId, currency",
@@ -44,6 +47,46 @@ export class EverGreenDatabase extends Dexie {
       backupMeta: "id, createdAt, status, destination",
       sequences: "name",
       categories: "id, kind, name",
+    });
+    this.version(2).stores({
+      settings: "id",
+      people: "id, fullName, phone, archived, createdAt, updatedAt",
+      ledgerEvents: "id, sequence, type, transactionId, personId, invoiceId, occurredAt, createdAt, reversesEventId, currency",
+      transactions: "id, referenceNumber, type, status, personId, occurredAt, invoiceId, updatedAt",
+      invoices: "id, invoiceNumber, status, paymentStatus, customerId, issuedAt, createdAt, updatedAt",
+      invoiceLines: "id, invoiceId",
+      invoiceRevisions: "id, invoiceId, revision, createdAt",
+      reconciliations: "id, occurredAt, createdAt",
+      auditLogs: "id, entityType, entityId, createdAt",
+      backupMeta: "id, createdAt, status, destination",
+      sequences: "name",
+      categories: "id, kind, name",
+      syncMeta: "key",
+      outbox: "id, createdAt, table, recordId, op, attempts, batchId",
+    }).upgrade(async (tx) => {
+      const settings = await tx.table("settings").get("app");
+      if (settings?.syncApiKey) {
+        await tx.table("syncMeta").put({ key: "syncApiKey", value: settings.syncApiKey });
+        delete settings.syncApiKey;
+        await tx.table("settings").put(settings);
+      }
+    });
+    this.version(SCHEMA_VERSION).stores({
+      settings: "id",
+      people: "id, fullName, phone, archived, createdAt, updatedAt",
+      ledgerEvents: "id, sequence, type, transactionId, personId, invoiceId, occurredAt, createdAt, reversesEventId, currency",
+      transactions: "id, referenceNumber, type, status, personId, occurredAt, invoiceId, updatedAt",
+      invoices: "id, invoiceNumber, status, paymentStatus, customerId, issuedAt, createdAt, updatedAt",
+      invoiceLines: "id, invoiceId",
+      invoiceRevisions: "id, invoiceId, revision, createdAt",
+      reconciliations: "id, occurredAt, createdAt",
+      auditLogs: "id, entityType, entityId, createdAt",
+      backupMeta: "id, createdAt, status, destination",
+      sequences: "name",
+      categories: "id, kind, name",
+      syncMeta: "key",
+      outbox: "id, createdAt, table, recordId, op, attempts, batchId",
+      localBackups: "id, createdAt, fileName",
     });
   }
 }
